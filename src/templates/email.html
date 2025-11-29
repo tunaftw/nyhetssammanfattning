@@ -114,6 +114,10 @@
             color: #737373;
         }
 
+        .news-date {
+            color: #737373;
+        }
+
         .news-link {
             color: #ea580c;
             text-decoration: none;
@@ -205,6 +209,9 @@
                     <div class="news-summary">{{ item.summary }}</div>
                     <div class="news-meta">
                         <span class="news-source">{{ item.source }}</span>
+                        {% if item.published_date %}
+                        <span class="news-date">{{ item.published_date }}</span>
+                        {% endif %}
                         {% if item.relevance_score >= 8 %}
                         <span class="relevance-badge relevance-high">Hög relevans</span>
                         {% elif item.relevance_score >= 6 %}

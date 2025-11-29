@@ -55,10 +55,13 @@ För varje nyhet, returnera EXAKT följande JSON-format (och inget annat):
             "summary": "Kort sammanfattning på 2-3 meningar som förklarar varför detta är relevant.",
             "url": "https://...",
             "source": "Källans namn (t.ex. Reuters, PV Magazine)",
+            "published_date": "2025-11-28",
             "relevance_score": 8
         }}
     ]
 }}
+
+- published_date: Datum då artikeln publicerades i format YYYY-MM-DD. Om exakt datum inte finns, uppskatta baserat på innehållet.
 
 Viktigt:
 - Relevance_score 1-10 baserat på hur relevant nyheten är för en svensk IPP som bygger sol- och batteriparker
