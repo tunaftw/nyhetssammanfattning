@@ -80,7 +80,7 @@ REGLER:
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-2.5-pro",
             contents=prompt,
             config=types.GenerateContentConfig(
                 tools=[types.Tool(google_search=types.GoogleSearch())],
@@ -269,7 +269,7 @@ Skriv på svenska. Var konkret och specifik - referera till faktiska nyheter och
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-2.5-pro",
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.5,

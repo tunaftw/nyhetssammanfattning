@@ -14,7 +14,7 @@ RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL", "pontus.skog@sveasolar.com")
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "onboarding@resend.dev")
 
 # Nyhetsparametrar
-MAX_NEWS_ITEMS = 15
+MAX_NEWS_ITEMS = 25
 
 # Sökprofil för Svea Solar
 COMPANY_CONTEXT = """
