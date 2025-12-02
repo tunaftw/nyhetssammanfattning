@@ -1,7 +1,7 @@
 """Hämtar och sammanfattar nyheter med Gemini API och Google Search grounding."""
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from google import genai
 from google.genai import types
 
@@ -139,7 +139,59 @@ REGLER:
         return []
 
 
-def fetch_all_news() -> dict:
+def filter_by_date(news_items: list, max_days: int = 7) -> tuple[list, int]:
+    """
+    Filtrerar bort nyheter som är äldre än max_days.
+
+    Args:
+        news_items: Lista med nyhetsartiklar
+        max_days: Max antal dagar gamla nyheter att behålla
+
+    Returns:
+        Tuple med (filtrerade nyheter, antal borttagna)
+    """
+    if not news_items:
+        return [], 0
+
+    cutoff_date = datetime.now() - timedelta(days=max_days)
+    cutoff_str = cutoff_date.strftime("%Y-%m-%d")
+
+    filtered = []
+    removed = 0
+
+    for item in news_items:
+        pub_date = item.get("published_date", "")
+
+        # Om inget datum finns, behåll artikeln (kan vara ny)
+        if not pub_date:
+            filtered.append(item)
+            continue
+
+        # Parsa datumet
+        try:
+            # Hantera olika datumformat
+            if len(pub_date) == 10:  # YYYY-MM-DD
+                item_date = pub_date
+            elif len(pub_date) > 10:  # Längre format, ta bara datumdelen
+                item_date = pub_date[:10]
+            else:
+                filtered.append(item)  # Ogiltig format, behåll
+                continue
+
+            # Jämför datum
+            if item_date >= cutoff_str:
+                filtered.append(item)
+            else:
+                removed += 1
+
+        except (ValueError, TypeError):
+            # Om datumparsning misslyckas, behåll artikeln
+            filtered.append(item)
+
+    return filtered, removed
+
+
+def fetch_all_news(max_age_days: int = 7) -> dict:
     """
     Hämtar nyheter från alla kategorier och rankar dem.
 
@@ -197,6 +249,25 @@ def fetch_all_news() -> dict:
                     "news_items": unique_rss
                 }
             all_news.extend(unique_rss)
+
+    # Filtrera bort gamla nyheter
+    total_before_date_filter = len(all_news)
+    total_old_removed = 0
+
+    for cat_key, cat_data in news_by_category.items():
+        filtered, removed = filter_by_date(cat_data["news_items"], max_days=max_age_days)
+        cat_data["news_items"] = filtered
+        total_old_removed += removed
+
+    if total_old_removed > 0:
+        print(f"\n📅 Datumfilter: {total_old_removed} gamla nyheter borttagna (äldre än {max_age_days} dagar)")
+
+    # Uppdatera all_news efter datumfiltrering
+    all_news = [
+        item
+        for cat in news_by_category.values()
+        for item in cat["news_items"]
+    ]
 
     # Sortera alla nyheter efter relevans
     all_news_sorted = sorted(
