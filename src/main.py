@@ -30,6 +30,7 @@ from news_fetcher import fetch_all_news, generate_weekly_insights
 from email_sender import send_email, send_test_email, render_email_html, send_deep_email
 from config import RECIPIENT_EMAIL, GEMINI_API_KEY, RESEND_API_KEY
 from url_validator import validate_urls_batch, filter_valid_news, run_validation
+from database import save_report, get_reports, get_articles, get_monthly_summary, get_database_stats
 
 
 def check_configuration() -> bool:
@@ -129,6 +130,11 @@ def run_full_pipeline() -> bool:
         # Steg 3: Skicka mail
         print(f"\n📧 Skickar mail till {RECIPIENT_EMAIL}...")
         result = send_email(news_data)
+
+        # Steg 4: Spara till historik
+        print("\n💾 Sparar till historik...")
+        report_id = save_report(news_data, report_type="daily")
+        print(f"   Rapport #{report_id} sparad")
 
         print("\n✅ Klart!")
         print(f"   Mail-ID: {result.get('id', 'unknown')}")
@@ -319,6 +325,11 @@ def run_weekly_analysis(days_back: int = 7) -> bool:
         print(f"\n📧 Skickar veckorapport till {RECIPIENT_EMAIL}...")
         result = send_deep_email(news_data)
 
+        # Steg 5: Spara till historik
+        print("\n💾 Sparar till historik...")
+        report_id = save_report(news_data, report_type="weekly")
+        print(f"   Veckorapport #{report_id} sparad")
+
         print("\n✅ Veckorapport skickad!")
         print(f"   Mail-ID: {result.get('id', 'unknown')}")
 
@@ -329,6 +340,106 @@ def run_weekly_analysis(days_back: int = 7) -> bool:
         import traceback
         traceback.print_exc()
         return False
+
+
+def run_history(month: str = None, search: str = None) -> bool:
+    """
+    Visar historik över tidigare rapporter.
+
+    Args:
+        month: YYYY-MM för att filtrera på månad
+        search: Sökterm för att hitta artiklar
+    """
+    print("📚 Nyhetshistorik")
+    print("=" * 60)
+
+    if month:
+        # Visa månadssammanfattning
+        try:
+            year, mon = month.split("-")
+            summary = get_monthly_summary(int(year), int(mon))
+
+            print(f"\n📅 {month}")
+            print(f"   Rapporter: {summary['stats']['total_reports']}")
+            print(f"   Artiklar: {summary['stats']['total_articles']}")
+
+            if summary['stats']['avg_relevance']:
+                print(f"   Snitt relevans: {summary['stats']['avg_relevance']:.1f}/10")
+
+            if summary['by_category']:
+                print("\n📊 Per kategori:")
+                for cat in summary['by_category']:
+                    print(f"   {cat['category_name']}: {cat['count']} artiklar")
+
+            if summary['top_articles']:
+                print("\n🏆 Top 10 artiklar:")
+                for i, art in enumerate(summary['top_articles'], 1):
+                    score = art.get('relevance_score', '?')
+                    print(f"   {i}. [{score}] {art['title'][:60]}...")
+                    print(f"      {art['source']} - {art['report_date']}")
+
+            return True
+
+        except ValueError:
+            print(f"❌ Ogiltigt datumformat: {month}")
+            print("   Använd format: YYYY-MM (t.ex. 2025-08)")
+            return False
+
+    elif search:
+        # Sök i artiklar
+        articles = get_articles(search=search, limit=20)
+
+        if not articles:
+            print(f"\n🔍 Inga artiklar matchade: '{search}'")
+            return True
+
+        print(f"\n🔍 Sökresultat för '{search}': {len(articles)} träffar\n")
+
+        for art in articles:
+            score = art.get('relevance_score', '?')
+            print(f"[{score}] {art['title'][:65]}")
+            print(f"    {art['source']} - {art['report_date']}")
+            print(f"    {art['url'][:70]}...")
+            print()
+
+        return True
+
+    else:
+        # Visa övergripande statistik
+        stats = get_database_stats()
+
+        if stats['total_reports'] == 0:
+            print("\n📭 Ingen historik ännu.")
+            print("   Kör 'python main.py' för att generera första rapporten.")
+            return True
+
+        print(f"\n📈 Övergripande statistik:")
+        print(f"   Totalt rapporter: {stats['total_reports']}")
+        print(f"   Totalt artiklar: {stats['total_articles']}")
+
+        if stats['date_range']['first']:
+            print(f"   Första rapport: {stats['date_range']['first']}")
+            print(f"   Senaste rapport: {stats['date_range']['last']}")
+
+        if stats['by_category']:
+            print("\n📊 Artiklar per kategori:")
+            for cat in stats['by_category']:
+                name = cat.get('category_name') or 'Okänd'
+                print(f"   {name}: {cat['count']}")
+
+        # Visa senaste rapporter
+        recent = get_reports(limit=5)
+        if recent:
+            print("\n📅 Senaste rapporter:")
+            for rep in recent:
+                rtype = "📊" if rep['report_type'] == 'weekly' else "📰"
+                print(f"   {rtype} {rep['report_date']}: {rep['total_articles']} artiklar")
+
+        print("\n💡 Tips:")
+        print("   --history --month 2025-08    Visa augusti 2025")
+        print("   --history --search 'batteri' Sök efter 'batteri'")
+
+        return True
 
 
 def main():
@@ -361,6 +472,21 @@ def main():
         default=7,
         help="Antal dagar att analysera (endast för --weekly, default 7)"
     )
+    parser.add_argument(
+        "--history",
+        action="store_true",
+        help="Visa historik över tidigare rapporter"
+    )
+    parser.add_argument(
+        "--month",
+        type=str,
+        help="Filtrera på månad (format: YYYY-MM, t.ex. 2025-08)"
+    )
+    parser.add_argument(
+        "--search",
+        type=str,
+        help="Sök i historiska artiklar"
+    )
 
     args = parser.parse_args()
 
@@ -372,6 +498,8 @@ def main():
         success = run_preview()
     elif args.weekly:
         success = run_weekly_analysis(days_back=args.days)
+    elif args.history:
+        success = run_history(month=args.month, search=args.search)
     else:
         success = run_full_pipeline()
 
