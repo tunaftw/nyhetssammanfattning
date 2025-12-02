@@ -148,30 +148,63 @@ async def validate_urls_batch(
     return results
 
 
+def create_google_search_url(title: str, source: str = None) -> str:
+    """
+    Skapar en Google-söklänk baserat på artikelns titel.
+
+    Args:
+        title: Artikelns titel
+        source: Källans namn (optional, läggs till i sökningen)
+
+    Returns:
+        Google sök-URL
+    """
+    from urllib.parse import quote
+
+    search_query = title
+    if source and source.lower() not in title.lower():
+        search_query = f"{title} {source}"
+
+    return f"https://www.google.com/search?q={quote(search_query)}"
+
+
 def filter_valid_news(
     news_items: List[Dict],
-    validation_results: Dict[str, ValidationResult]
+    validation_results: Dict[str, ValidationResult],
+    replace_broken_with_search: bool = True
 ) -> Tuple[List[Dict], List[Dict]]:
     """
     Filtrerar nyheter baserat på URL-validering.
 
+    Om replace_broken_with_search=True, ersätts brutna URL:er med Google-sökning
+    istället för att ta bort artikeln.
+
     Args:
         news_items: Lista med nyhetsartiklar
         validation_results: Dict med URL -> ValidationResult
+        replace_broken_with_search: Ersätt brutna länkar med Google-sökning
 
     Returns:
-        Tuple med (giltiga nyheter, ogiltiga nyheter)
+        Tuple med (giltiga nyheter, nyheter med ersatta/brutna länkar)
     """
     valid = []
-    invalid = []
+    fixed = []  # Artiklar där URL ersatts med söklänk
 
     for item in news_items:
         url = item.get("url", "")
 
         if not url:
-            item["url_verified"] = False
-            item["url_error"] = "Ingen URL"
-            invalid.append(item)
+            if replace_broken_with_search and item.get("title"):
+                # Ingen URL - skapa Google-sökning baserat på titel
+                item["url"] = create_google_search_url(
+                    item["title"],
+                    item.get("source")
+                )
+                item["url_is_search"] = True
+                item["url_verified"] = False
+                item["url_error"] = "Ingen original-URL, söklänk skapad"
+                valid.append(item)
+                fixed.append(item)
             continue
 
         result = validation_results.get(url)
@@ -185,11 +218,25 @@ def filter_valid_news(
             item["url_status"] = result.status_code
             valid.append(item)
         else:
-            item["url_verified"] = False
-            item["url_error"] = result.error if result else "Ej validerad"
-            invalid.append(item)
+            # Bruten länk
+            if replace_broken_with_search and item.get("title"):
+                # Ersätt med Google-sökning
+                item["original_url"] = url
+                item["url"] = create_google_search_url(
+                    item["title"],
+                    item.get("source")
+                )
+                item["url_is_search"] = True
+                item["url_verified"] = False
+                item["url_error"] = result.error if result else "Ej validerad"
+                valid.append(item)
+                fixed.append(item)
+            else:
+                item["url_verified"] = False
+                item["url_error"] = result.error if result else "Ej validerad"
+                # Artikeln tas bort (läggs inte i valid)
 
-    return valid, invalid
+    return valid, fixed
 
 
 def run_validation(urls: List[str]) -> Dict[str, ValidationResult]:

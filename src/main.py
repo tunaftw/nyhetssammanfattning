@@ -98,15 +98,15 @@ def run_full_pipeline() -> bool:
 
         validation_results = run_validation(all_urls)
 
-        # Filtrera bort artiklar med brutna länkar
-        total_removed = 0
+        # Validera och fixa brutna länkar (ersätt med Google-sökning)
+        total_fixed = 0
         for cat_key, cat_data in news_data["news_by_category"].items():
-            valid, invalid = filter_valid_news(cat_data["news_items"], validation_results)
+            valid, fixed = filter_valid_news(cat_data["news_items"], validation_results)
             cat_data["news_items"] = valid
 
-            if invalid:
-                total_removed += len(invalid)
-                print(f"   ⚠️  {cat_data['name']}: {len(invalid)} artiklar hade brutna länkar")
+            if fixed:
+                total_fixed += len(fixed)
+                print(f"   🔧 {cat_data['name']}: {len(fixed)} länkar ersatta med Google-sökning")
 
         # Uppdatera total efter filtrering
         total_after = sum(
@@ -114,8 +114,8 @@ def run_full_pipeline() -> bool:
             for cat in news_data["news_by_category"].values()
         )
 
-        if total_removed > 0:
-            print(f"   ✅ {total_after} artiklar med verifierade länkar")
+        if total_fixed > 0:
+            print(f"   ✅ {total_after} artiklar totalt ({total_fixed} med söklänkar)")
 
         if total_after == 0:
             print("⚠️  Inga nyheter med giltiga länkar. Avbryter.")
@@ -206,23 +206,23 @@ def run_preview() -> bool:
 
         validation_results = run_validation(all_urls)
 
-        # Filtrera bort artiklar med brutna länkar
-        total_removed = 0
+        # Validera och fixa brutna länkar (ersätt med Google-sökning)
+        total_fixed = 0
         for cat_key, cat_data in news_data["news_by_category"].items():
-            valid, invalid = filter_valid_news(cat_data["news_items"], validation_results)
+            valid, fixed = filter_valid_news(cat_data["news_items"], validation_results)
             cat_data["news_items"] = valid
 
-            if invalid:
-                total_removed += len(invalid)
-                print(f"   ⚠️  {cat_data['name']}: {len(invalid)} artiklar hade brutna länkar")
+            if fixed:
+                total_fixed += len(fixed)
+                print(f"   🔧 {cat_data['name']}: {len(fixed)} länkar ersatta med Google-sökning")
 
         total_after = sum(
             len(cat["news_items"])
             for cat in news_data["news_by_category"].values()
         )
 
-        if total_removed > 0:
-            print(f"   ✅ {total_after} artiklar med verifierade länkar")
+        if total_fixed > 0:
+            print(f"   ✅ {total_after} artiklar totalt ({total_fixed} med söklänkar)")
 
         html = render_email_html(news_data)
 
@@ -312,15 +312,15 @@ def run_weekly_analysis(days_back: int = 7) -> bool:
 
         validation_results = run_validation(all_urls)
 
-        # Filtrera bort artiklar med brutna länkar
-        total_removed = 0
+        # Validera och fixa brutna länkar (ersätt med Google-sökning)
+        total_fixed = 0
         for cat_key, cat_data in news_data["news_by_category"].items():
-            valid, invalid = filter_valid_news(cat_data["news_items"], validation_results)
+            valid, fixed = filter_valid_news(cat_data["news_items"], validation_results)
             cat_data["news_items"] = valid
 
-            if invalid:
-                total_removed += len(invalid)
-                print(f"   ⚠️  {cat_data['name']}: {len(invalid)} brutna länkar")
+            if fixed:
+                total_fixed += len(fixed)
+                print(f"   🔧 {cat_data['name']}: {len(fixed)} länkar ersatta med söklänk")
 
         total_after = sum(
             len(cat["news_items"])
@@ -328,10 +328,10 @@ def run_weekly_analysis(days_back: int = 7) -> bool:
         )
 
         if total_after == 0:
-            print("⚠️  Inga nyheter med giltiga länkar. Avbryter.")
+            print("⚠️  Inga nyheter hittades. Avbryter.")
             return False
 
-        print(f"   ✅ {total_after} artiklar med verifierade länkar")
+        print(f"   ✅ {total_after} artiklar totalt ({total_fixed} med söklänkar)")
 
         # Steg 3: Generera AI-insikter
         print("\n🧠 Genererar AI-analys...")
