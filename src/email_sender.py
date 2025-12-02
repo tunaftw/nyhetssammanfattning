@@ -102,6 +102,95 @@ def send_test_email() -> dict:
     return resend.Emails.send(params)
 
 
+def render_deep_email_html(news_data: dict) -> str:
+    """
+    Renderar HTML-mall för veckorapport med AI-insikter.
+
+    Args:
+        news_data: Dict med news_by_category, ai_insights, etc.
+
+    Returns:
+        Renderad HTML-sträng
+    """
+    templates_dir = Path(__file__).parent / "templates"
+    env = Environment(loader=FileSystemLoader(templates_dir))
+    template = env.get_template("deep_email.html")
+
+    # Räkna statistik
+    total_news = sum(
+        len(cat["news_items"])
+        for cat in news_data["news_by_category"].values()
+    )
+
+    verified_count = sum(
+        1 for cat in news_data["news_by_category"].values()
+        for item in cat["news_items"]
+        if item.get("url_verified", False)
+    )
+
+    category_count = len([
+        cat for cat in news_data["news_by_category"].values()
+        if cat["news_items"]
+    ])
+
+    # Markera verified för template
+    for cat in news_data["news_by_category"].values():
+        for item in cat["news_items"]:
+            item["verified"] = item.get("url_verified", False)
+
+    html = template.render(
+        news_by_category=news_data["news_by_category"],
+        ai_insights=news_data.get("ai_insights", {
+            "trends": [],
+            "company_context": [],
+            "predictions": []
+        }),
+        fetch_date=news_data["fetch_date"],
+        news_count=total_news,
+        verified_count=verified_count,
+        category_count=category_count,
+    )
+
+    return html
+
+
+def send_deep_email(news_data: dict) -> dict:
+    """
+    Skickar veckorapport med djupanalys via e-post.
+
+    Args:
+        news_data: Dict med news_by_category och ai_insights
+
+    Returns:
+        Resend API-svar
+    """
+    resend.api_key = RESEND_API_KEY
+
+    html_content = render_deep_email_html(news_data)
+
+    # Veckonummer för subject
+    from datetime import datetime
+    week_num = datetime.now().isocalendar()[1]
+
+    subject = f"📊 Veckoanalys Sol & Batteri - v.{week_num}"
+
+    params = {
+        "from": SENDER_EMAIL,
+        "to": [RECIPIENT_EMAIL],
+        "subject": subject,
+        "html": html_content,
+    }
+
+    try:
+        response = resend.Emails.send(params)
+        print(f"Veckorapport skickad! ID: {response.get('id', 'unknown')}")
+        print(f"Till: {RECIPIENT_EMAIL}")
+        return response
+    except Exception as e:
+        print(f"Fel vid skickande av veckorapport: {e}")
+        raise
+
+
 if __name__ == "__main__":
     # Test rendering
     from dotenv import load_dotenv

@@ -47,29 +47,32 @@ med fokus på följande söktermer:
 
 Hitta de {max_items} mest relevanta nyheterna från de senaste 7 dagarna.
 
+KRITISKT OM URL:ER:
+- Returnera ENDAST direkta länkar till originalartiklar (t.ex. https://pv-magazine.com/2024/...)
+- UNDVIK Google redirect-länkar (vertexaisearch.cloud.google.com)
+- Om du inte kan hitta en direkt URL, ange källans huvuddomän (t.ex. https://www.reuters.com/)
+
 För varje nyhet, returnera EXAKT följande JSON-format (och inget annat):
 {{
     "news": [
         {{
-            "title": "Nyhetens rubrik",
+            "title": "Nyhetens exakta rubrik från artikeln",
             "summary": "Kort sammanfattning på 2-3 meningar som förklarar varför detta är relevant.",
-            "url": "https://...",
-            "source": "Källans namn (t.ex. Reuters, PV Magazine)",
+            "url": "https://direktlank-till-artikel.com/...",
+            "source": "Källans namn (t.ex. Reuters, PV Magazine, Energimyndigheten)",
             "published_date": "2025-11-28",
             "relevance_score": 8
         }}
     ]
 }}
 
-- published_date: Datum då artikeln publicerades i format YYYY-MM-DD. Om exakt datum inte finns, uppskatta baserat på innehållet.
-
-Viktigt:
-- Relevance_score 1-10 baserat på hur relevant nyheten är för en svensk IPP som bygger sol- och batteriparker
-- Prioritera: konkreta projekt, investeringar, policy-ändringar, teknikgenombrott
-- Undvik: produktlanseringar för privatpersoner, lokala småskaliga installationer
-- Om nyheten är på engelska, skriv sammanfattningen på engelska
-- Om nyheten är på svenska, skriv sammanfattningen på svenska
-- Returnera ENDAST valid JSON, ingen annan text
+REGLER:
+- published_date: Datum i format YYYY-MM-DD. Uppskatta om exakt datum saknas.
+- relevance_score: 1-10 baserat på relevans för svensk IPP som bygger sol/batteriparker
+- Prioritera: konkreta projekt >10 MW, investeringar, PPA-avtal, policy-ändringar, teknikgenombrott
+- Undvik: produkter för privatpersoner, installationer <1 MW, opinionsartiklar
+- Språk: Behåll originalspråket (engelska/svenska) i sammanfattningen
+- Format: Returnera ENDAST valid JSON, ingen markdown eller annan text
 """
 
     try:
@@ -186,6 +189,105 @@ def fetch_all_news() -> dict:
         "fetch_date": datetime.now().strftime("%Y-%m-%d"),
         "fetch_time": datetime.now().strftime("%H:%M"),
     }
+
+
+def generate_weekly_insights(news_data: dict) -> dict:
+    """
+    Genererar AI-baserade insikter från veckans nyheter.
+
+    Args:
+        news_data: Dict med news_by_category
+
+    Returns:
+        Dict med trends, company_context, predictions
+    """
+    client = create_client()
+
+    # Sammanställ alla nyheter som kontext
+    all_news_text = ""
+    for cat in news_data["news_by_category"].values():
+        all_news_text += f"\n## {cat['name']}\n"
+        for item in cat["news_items"]:
+            all_news_text += f"- {item['title']}: {item['summary']}\n"
+
+    prompt = f"""
+Analysera dessa nyheter från sol- och batteribranschen den senaste veckan:
+
+{all_news_text}
+
+Som strategisk analytiker för Svea Solar (svensk IPP som bygger sol- och batteriparker), generera:
+
+1. OBSERVERADE TRENDER (4-6 punkter):
+   - Vilka mönster ser du i nyheterna?
+   - Geografiska, teknologiska eller marknadsmässiga trender?
+   - Vad har hänt inom batterilagring?
+
+2. RELEVANS FÖR SVEA SOLAR (4-6 punkter):
+   - Hur påverkar dessa nyheter en svensk solparks-utvecklare?
+   - Konkurrentrörelser att bevaka?
+   - Möjligheter eller risker?
+
+3. MARKNADSUTSIKTER (3-4 punkter):
+   - Vad indikerar nyheterna om framtiden?
+   - Prisförändringar eller investeringsläge?
+   - Regulatoriska förändringar att bevaka?
+
+Returnera som JSON (och ENDAST JSON, ingen annan text):
+{{
+    "trends": ["...", "...", "..."],
+    "company_context": ["...", "...", "..."],
+    "predictions": ["...", "..."]
+}}
+
+Skriv på svenska. Var konkret och specifik - referera till faktiska nyheter och siffror.
+"""
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.5,
+            )
+        )
+
+        response_text = ""
+        for part in response.candidates[0].content.parts:
+            if hasattr(part, 'text') and part.text:
+                response_text += part.text
+
+        response_text = response_text.strip()
+
+        # Hantera markdown code block
+        if response_text.startswith("```"):
+            lines = response_text.split("\n")
+            json_lines = []
+            in_json = False
+            for line in lines:
+                if line.startswith("```") and not in_json:
+                    in_json = True
+                    continue
+                elif line.startswith("```") and in_json:
+                    break
+                elif in_json:
+                    json_lines.append(line)
+            response_text = "\n".join(json_lines)
+
+        insights = json.loads(response_text)
+
+        return {
+            "trends": insights.get("trends", []),
+            "company_context": insights.get("company_context", []),
+            "predictions": insights.get("predictions", []),
+        }
+
+    except Exception as e:
+        print(f"Fel vid generering av AI-insikter: {e}")
+        return {
+            "trends": ["Kunde inte generera trender automatiskt."],
+            "company_context": ["Kunde inte generera företagskontext automatiskt."],
+            "predictions": ["Kunde inte generera prognoser automatiskt."],
+        }
 
 
 if __name__ == "__main__":

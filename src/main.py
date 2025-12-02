@@ -26,9 +26,10 @@ from dotenv import load_dotenv
 # Ladda miljövariabler
 load_dotenv()
 
-from news_fetcher import fetch_all_news
-from email_sender import send_email, send_test_email, render_email_html
+from news_fetcher import fetch_all_news, generate_weekly_insights
+from email_sender import send_email, send_test_email, render_email_html, send_deep_email
 from config import RECIPIENT_EMAIL, GEMINI_API_KEY, RESEND_API_KEY
+from url_validator import validate_urls_batch, filter_valid_news, run_validation
 
 
 def check_configuration() -> bool:
@@ -56,7 +57,7 @@ def check_configuration() -> bool:
 
 def run_full_pipeline() -> bool:
     """
-    Kör hela pipelinen: hämta nyheter och skicka mail.
+    Kör hela pipelinen: hämta nyheter, validera länkar och skicka mail.
 
     Returns:
         True om lyckad, False vid fel
@@ -85,12 +86,47 @@ def run_full_pipeline() -> bool:
 
         print(f"✅ Hämtade {total_news} nyheter")
 
+        # Steg 2: Validera URL:er
+        print("\n🔗 Validerar länkar...")
+        all_urls = [
+            item["url"]
+            for cat in news_data["news_by_category"].values()
+            for item in cat["news_items"]
+            if item.get("url")
+        ]
+
+        validation_results = run_validation(all_urls)
+
+        # Filtrera bort artiklar med brutna länkar
+        total_removed = 0
+        for cat_key, cat_data in news_data["news_by_category"].items():
+            valid, invalid = filter_valid_news(cat_data["news_items"], validation_results)
+            cat_data["news_items"] = valid
+
+            if invalid:
+                total_removed += len(invalid)
+                print(f"   ⚠️  {cat_data['name']}: {len(invalid)} artiklar hade brutna länkar")
+
+        # Uppdatera total efter filtrering
+        total_after = sum(
+            len(cat["news_items"])
+            for cat in news_data["news_by_category"].values()
+        )
+
+        if total_removed > 0:
+            print(f"   ✅ {total_after} artiklar med verifierade länkar")
+
+        if total_after == 0:
+            print("⚠️  Inga nyheter med giltiga länkar. Avbryter.")
+            return False
+
         # Visa sammanfattning per kategori
+        print("\n📊 Sammanfattning:")
         for cat_key, cat_data in news_data["news_by_category"].items():
             count = len(cat_data["news_items"])
             print(f"   {cat_data['emoji']} {cat_data['name']}: {count} nyheter")
 
-        # Steg 2: Skicka mail
+        # Steg 3: Skicka mail
         print(f"\n📧 Skickar mail till {RECIPIENT_EMAIL}...")
         result = send_email(news_data)
 
@@ -196,9 +232,108 @@ def run_test() -> bool:
         return False
 
 
+def run_weekly_analysis(days_back: int = 7) -> bool:
+    """
+    Kör veckoanalys med djupare AI-insikter.
+
+    Args:
+        days_back: Antal dagar att analysera (default 7)
+
+    Returns:
+        True om lyckad, False vid fel
+    """
+    print("=" * 60)
+    print(f"📊 Veckoanalys - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    print(f"   Analyserar senaste {days_back} dagarna")
+    print("=" * 60)
+
+    if not check_configuration():
+        return False
+
+    try:
+        # Steg 1: Hämta nyheter
+        print("\n📡 Hämtar nyheter via Gemini...")
+        news_data = fetch_all_news()
+
+        total_news = sum(
+            len(cat["news_items"])
+            for cat in news_data["news_by_category"].values()
+        )
+
+        if total_news == 0:
+            print("⚠️  Inga nyheter hittades. Avbryter.")
+            return False
+
+        print(f"✅ Hämtade {total_news} nyheter")
+
+        # Steg 2: Validera URL:er
+        print("\n🔗 Validerar länkar...")
+        all_urls = [
+            item["url"]
+            for cat in news_data["news_by_category"].values()
+            for item in cat["news_items"]
+            if item.get("url")
+        ]
+
+        validation_results = run_validation(all_urls)
+
+        # Filtrera bort artiklar med brutna länkar
+        total_removed = 0
+        for cat_key, cat_data in news_data["news_by_category"].items():
+            valid, invalid = filter_valid_news(cat_data["news_items"], validation_results)
+            cat_data["news_items"] = valid
+
+            if invalid:
+                total_removed += len(invalid)
+                print(f"   ⚠️  {cat_data['name']}: {len(invalid)} brutna länkar")
+
+        total_after = sum(
+            len(cat["news_items"])
+            for cat in news_data["news_by_category"].values()
+        )
+
+        if total_after == 0:
+            print("⚠️  Inga nyheter med giltiga länkar. Avbryter.")
+            return False
+
+        print(f"   ✅ {total_after} artiklar med verifierade länkar")
+
+        # Steg 3: Generera AI-insikter
+        print("\n🧠 Genererar AI-analys...")
+        insights = generate_weekly_insights(news_data)
+        news_data["ai_insights"] = insights
+        news_data["report_type"] = "weekly"
+
+        print(f"   ✅ {len(insights.get('trends', []))} trender identifierade")
+        print(f"   ✅ {len(insights.get('company_context', []))} företagsrelevanta insikter")
+        print(f"   ✅ {len(insights.get('predictions', []))} marknadsprognoser")
+
+        # Visa sammanfattning
+        print("\n📊 Sammanfattning:")
+        for cat_key, cat_data in news_data["news_by_category"].items():
+            count = len(cat_data["news_items"])
+            if count > 0:
+                print(f"   {cat_data['emoji']} {cat_data['name']}: {count} nyheter")
+
+        # Steg 4: Skicka deep email
+        print(f"\n📧 Skickar veckorapport till {RECIPIENT_EMAIL}...")
+        result = send_deep_email(news_data)
+
+        print("\n✅ Veckorapport skickad!")
+        print(f"   Mail-ID: {result.get('id', 'unknown')}")
+
+        return True
+
+    except Exception as e:
+        print(f"\n❌ Fel: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Daglig nyhetssammanfattning för solenergi och batterilagring"
+        description="Nyhetssammanfattning för solenergi och batterilagring"
     )
     parser.add_argument(
         "--test",
@@ -215,6 +350,17 @@ def main():
         action="store_true",
         help="Hämta nyheter och spara HTML lokalt för förhandsgranskning"
     )
+    parser.add_argument(
+        "--weekly",
+        action="store_true",
+        help="Kör veckoanalys med AI-insikter (djupare analys)"
+    )
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=7,
+        help="Antal dagar att analysera (endast för --weekly, default 7)"
+    )
 
     args = parser.parse_args()
 
@@ -224,6 +370,8 @@ def main():
         success = run_dry_run()
     elif args.preview:
         success = run_preview()
+    elif args.weekly:
+        success = run_weekly_analysis(days_back=args.days)
     else:
         success = run_full_pipeline()
 

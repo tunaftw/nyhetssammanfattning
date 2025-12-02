@@ -39,33 +39,51 @@ SEARCH_CATEGORIES = {
         "name": "Sverige & Norden",
         "emoji": "🇸🇪",
         "queries": [
-            "solcellspark Sverige nyheter",
-            "batterilagring Sverige energi",
+            "solcellspark Sverige nyheter 2024 2025",
+            "batterilagring Sverige energi projekt",
             "solenergi investering Norden",
             "förnybar energi IPP Sverige",
             "nätanslutning solpark Svenska Kraftnät",
+            # Utökade söktermer
+            "Svea Solar OX2 Vattenfall Alight konkurrent",
+            "solpark tillstånd miljöprövning Sverige",
+            "BESS batterilager MW Sverige",
+            "PPA avtal solenergi Sverige Norden",
+            "hybridpark sol vind Sverige",
         ]
     },
     "europa": {
         "name": "Europa",
         "emoji": "🇪🇺",
         "queries": [
-            "utility-scale solar Europe news",
-            "battery energy storage BESS Europe",
+            "utility-scale solar Europe news 2024 2025",
+            "battery energy storage BESS Europe project",
             "solar PPA Europe deal",
-            "renewable energy policy EU",
-            "grid-scale storage Europe",
+            "renewable energy policy EU regulation",
+            "grid-scale storage Europe GW",
+            # Utökade söktermer
+            "solar farm construction Europe MW",
+            "European solar auction tender",
+            "BESS grid services Europe frequency",
+            "renewable IPP Europe acquisition",
+            "bifacial agrivoltaics Europe",
         ]
     },
     "globalt": {
         "name": "Globalt",
         "emoji": "🌍",
         "queries": [
-            "large-scale solar project GW",
+            "large-scale solar project GW 2024 2025",
             "mega solar farm construction",
             "grid-scale battery storage project",
             "solar plus storage hybrid project",
             "renewable energy IPP investment",
+            # Utökade söktermer
+            "NEOM solar Saudi Arabia",
+            "India solar park Khavda Adani",
+            "China solar capacity GW",
+            "US utility solar IRA investment",
+            "Australia solar battery project",
         ]
     },
     "trender": {
@@ -77,6 +95,12 @@ SEARCH_CATEGORIES = {
             "renewable energy investment outlook",
             "solar technology innovation bifacial",
             "energy storage market analysis",
+            # Utökade söktermer
+            "LFP battery price trend",
+            "solar module price forecast",
+            "PPA price Europe trend",
+            "grid curtailment solar solution",
+            "solar LCOE cost reduction",
         ]
     }
 }
