@@ -195,13 +195,42 @@ def run_preview() -> bool:
     try:
         news_data = fetch_all_news()
 
+        # Validera URL:er (samma som i full pipeline)
+        print("\n🔗 Validerar länkar...")
+        all_urls = [
+            item["url"]
+            for cat in news_data["news_by_category"].values()
+            for item in cat["news_items"]
+            if item.get("url")
+        ]
+
+        validation_results = run_validation(all_urls)
+
+        # Filtrera bort artiklar med brutna länkar
+        total_removed = 0
+        for cat_key, cat_data in news_data["news_by_category"].items():
+            valid, invalid = filter_valid_news(cat_data["news_items"], validation_results)
+            cat_data["news_items"] = valid
+
+            if invalid:
+                total_removed += len(invalid)
+                print(f"   ⚠️  {cat_data['name']}: {len(invalid)} artiklar hade brutna länkar")
+
+        total_after = sum(
+            len(cat["news_items"])
+            for cat in news_data["news_by_category"].values()
+        )
+
+        if total_removed > 0:
+            print(f"   ✅ {total_after} artiklar med verifierade länkar")
+
         html = render_email_html(news_data)
 
         # Spara till fil
         output_path = Path(__file__).parent.parent / "preview.html"
         output_path.write_text(html, encoding="utf-8")
 
-        print(f"✅ HTML sparad till: {output_path}")
+        print(f"\n✅ HTML sparad till: {output_path}")
         print(f"   Öppna i webbläsare för att förhandsgranska")
 
         # Spara också JSON för debugging
