@@ -11,6 +11,8 @@ from config import (
     SEARCH_CATEGORIES,
     MAX_NEWS_ITEMS,
 )
+from utils.retry import retry_with_backoff
+from sources.google_rss import fetch_news_from_rss, RSS_FEEDS
 
 
 def create_client() -> genai.Client:
@@ -18,6 +20,7 @@ def create_client() -> genai.Client:
     return genai.Client(api_key=GEMINI_API_KEY)
 
 
+@retry_with_backoff(max_retries=3, base_delay=2.0, exceptions=(Exception,))
 def fetch_news_for_category(
     client: genai.Client,
     category_key: str,
@@ -172,6 +175,28 @@ def fetch_all_news() -> dict:
         }
 
         all_news.extend(news_items)
+
+    # Komplettera med Google RSS om vi har få nyheter
+    total_gemini = len(all_news)
+    if total_gemini < MAX_NEWS_ITEMS:
+        print(f"\n📰 Kompletterar med Google RSS ({total_gemini}/{MAX_NEWS_ITEMS} nyheter)...")
+        rss_news = fetch_news_from_rss(max_per_feed=3)
+
+        # Filtrera bort dubbletter (baserat på URL)
+        existing_urls = {item.get("url") for item in all_news if item.get("url")}
+        unique_rss = [item for item in rss_news if item.get("url") not in existing_urls]
+
+        if unique_rss:
+            print(f"   ✅ Lade till {len(unique_rss)} unika RSS-nyheter")
+
+            # Lägg till RSS-nyheter i en egen kategori eller fördela
+            if "rss_news" not in news_by_category:
+                news_by_category["rss_news"] = {
+                    "name": "Fler nyheter (RSS)",
+                    "emoji": "📰",
+                    "news_items": unique_rss
+                }
+            all_news.extend(unique_rss)
 
     # Sortera alla nyheter efter relevans
     all_news_sorted = sorted(

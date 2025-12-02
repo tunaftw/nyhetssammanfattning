@@ -43,6 +43,6 @@ jobs:
         with:
           name: debug-logs
           path: |
-            src/preview.html
-            src/preview_data.json
+            preview.html
+            preview_data.json
           retention-days: 7

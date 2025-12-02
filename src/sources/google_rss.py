@@ -224,6 +224,56 @@ def fetch_from_google_rss(
     return all_news
 
 
+# Fördefinierade RSS-sökningar för sol- och batteribranschen
+RSS_FEEDS = {
+    "solar": [
+        "solcellspark Sverige",
+        "solar park Europe MW",
+        "utility scale solar",
+        "PV power plant",
+    ],
+    "battery": [
+        "batterilagring energi Sverige",
+        "battery energy storage Europe",
+        "grid battery MW",
+        "BESS project",
+    ],
+    "ppa": [
+        "PPA solar agreement",
+        "power purchase agreement renewable",
+    ],
+}
+
+
+def fetch_news_from_rss(
+    max_per_feed: int = 3,
+    categories: list = None
+) -> list:
+    """
+    Hämtar nyheter från fördefinierade RSS-flöden.
+
+    Args:
+        max_per_feed: Max antal resultat per sökfråga
+        categories: Lista med kategorier att söka (default: alla)
+
+    Returns:
+        Lista med nyheter från Google RSS
+    """
+    if categories is None:
+        categories = list(RSS_FEEDS.keys())
+
+    all_queries = []
+    for cat in categories:
+        if cat in RSS_FEEDS:
+            all_queries.extend(RSS_FEEDS[cat])
+
+    return fetch_from_google_rss(
+        queries=all_queries,
+        language="sv",
+        max_per_query=max_per_feed
+    )
+
+
 if __name__ == "__main__":
     # Test
     print("Testar Google News RSS...\n")

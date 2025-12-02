@@ -35,6 +35,16 @@ wheels/
 # Preview files (generated locally)
 preview.html
 preview_data.json
+deep_news_preview.html
+deep_news_data.json
+
+# Generated directories
+output/
+report/
+web/
+
+# Claude Code
+.claude/
 
 # OS
 .DS_Store
